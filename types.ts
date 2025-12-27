@@ -1,22 +1,46 @@
 
+export type LearningStyle = 'visual' | 'verbal' | 'mixed';
+export type MnemonicPref = 'acronyms' | 'stories' | 'images' | 'diagrams';
+
+export interface UserProfile {
+  subject: string;
+  academicLevel: string;
+  learningStyle: LearningStyle;
+  mnemonicPref: MnemonicPref;
+  examDate?: string;
+  dailyTimeLimit?: number; // minutes
+}
+
+export interface User {
+  id: string;
+  username: string;
+  profile: UserProfile;
+  weakAreas: string[]; // Concept IDs
+  quizHistory: { date: string; score: number; total: number; sheetId: string }[];
+  library: string[]; // Sheet IDs
+  conceptMastery: Record<string, number>; // Maps ConceptID -> Mastery % (0-100)
+}
+
 export interface Concept {
   id: string;
   term: string;
   explanation: string;
   testLikelihood: 'High' | 'Medium' | 'Low';
+  relatedConceptIds: string[]; // Linked concepts for navigation
 }
 
 export interface Mnemonic {
   conceptId: string;
   term: string;
-  aid: string; // Acronym, phrase, or association
-  visualHook: string; // Vivid mental image description
+  aid: string; 
+  visualHook: string;
 }
 
 export interface Equation {
   id: string;
   term: string;
-  formula: string;
+  formula: string; // LaTeX
+  plainEnglish: string;
   explanation: string;
 }
 
@@ -31,7 +55,7 @@ export interface VisualAids {
   id: string;
   description: string;
   summary: string;
-  mentalImage: string; // Step-by-step mental image/visual mnemonic for the diagram
+  mentalImage: string;
 }
 
 export interface FlowchartNode {
@@ -42,9 +66,9 @@ export interface FlowchartNode {
 }
 
 export interface SpacedPlan {
-  core: string[];
-  supporting: string[];
-  examples: string[];
+  core?: string[];
+  supporting?: string[];
+  examples?: string[];
   schedule: {
     day: number;
     focus: string;
@@ -53,6 +77,8 @@ export interface SpacedPlan {
 }
 
 export interface StudyData {
+  id: string; 
+  title: string;
   concepts: Concept[];
   mnemonics: Mnemonic[];
   plan: SpacedPlan;
@@ -60,6 +86,18 @@ export interface StudyData {
   laws?: Law[];
   visualAids?: VisualAids[];
   flowchart?: FlowchartNode[];
+}
+
+export interface SharedSheet {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  title: string;
+  subject: string;
+  level: string;
+  data: StudyData;
+  ratings: { userId: string; score: number }[];
+  comments: { userId: string; userName: string; text: string; date: string }[];
 }
 
 export interface QuizQuestion {
@@ -79,12 +117,5 @@ export interface QuizFeedback {
   memoryTip?: string;
 }
 
-export interface User {
-  id: string;
-  username: string;
-  weakAreas: string[]; // Concept IDs
-  quizHistory: { date: string; score: number; total: number }[];
-}
-
-export type AppMode = 'landing' | 'processing' | 'dashboard' | 'quiz' | 'exam' | 'auth';
+export type AppMode = 'landing' | 'processing' | 'dashboard' | 'quiz' | 'exam' | 'auth' | 'profile' | 'network';
 export type DashboardTab = 'concepts' | 'flashcards' | 'formulas' | 'visuals' | 'tutor';

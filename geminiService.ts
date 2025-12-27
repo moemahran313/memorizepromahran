@@ -1,12 +1,16 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyData, QuizQuestion, QuizFeedback } from "./types";
+import { StudyData, QuizQuestion, QuizFeedback, UserProfile } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const processStudyMaterial = async (fileBase64: string, mimeType: string): Promise<StudyData> => {
+export const processStudyMaterial = async (
+  fileBase64: string, 
+  mimeType: string, 
+  profile: UserProfile
+): Promise<StudyData> => {
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     contents: [
       {
         parts: [
@@ -17,21 +21,28 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
             }
           },
           {
-            text: `Analyze this study material and extract core knowledge for rapid, long-term memorization. 
-            Follow these scientifically-backed learning rules:
+            text: `Act as a senior educational specialist. Analyze this study material and transform it into a high-performance cognitive mastery engine.
             
-            1. Concepts: Extract terms with simple, clear explanations and highlight test likelihood.
-            2. Equations/Laws: Extract formulas and official scientific principles.
-            3. Mnemonics & Memory Tools: 
-               - For every important concept, create a mnemonic (acronym, phrase, or word association).
-               - Provide a "Visual Memory Hook": Describe a vivid, specific mental image to imagine that represents the concept.
-            4. Image/Diagram Analysis: 
-               - If images or diagrams exist, provide a summary of what they show in simple terms.
-               - Turn diagrams into a "Visual Mnemonic": A step-by-step mental image that walks the student through the process shown.
-            5. Spaced Learning: Organize a 3-day repetition schedule.
-            6. Processes: Represent key cycles/steps as a flowchart structure.
+            User Context: ${profile.academicLevel} level, Subject: ${profile.subject}, Learning Style: ${profile.learningStyle}, Mnemonic Pref: ${profile.mnemonicPref}.
             
-            Return the result in JSON format.`
+            CRITICAL: MATHEMATICAL FORMATTING RULES
+            1. Use ONLY KaTeX-compatible LaTeX.
+            2. DELIMITERS: 
+               - Inline math: Wrap in SINGLE dollar signs like $E=mc^2$.
+               - Block math: Wrap in DOUBLE dollar signs like $$a^2 + b^2 = c^2$$.
+            3. MULTI-LINE: NEVER use the 'align' environment. Use 'aligned' inside math mode, e.g., $$\\begin{aligned} x &= y \\\\ a &= b \\end{aligned}$$.
+            4. SYMBOLS: Use standard \\frac{a}{b}, \\sqrt{x}, \\int, \\sum_{i=1}^{n}. For matrices use \\begin{pmatrix}...\\end{pmatrix}.
+            5. Avoid any packages not native to KaTeX.
+            
+            KNOWLEDGE EXTRACTION RULES:
+            1. Concepts: Provide deep, clear explanations.
+            2. Related Concepts: For every concept, identify 2-3 other concept 'id's in the generated list that are logically related.
+            3. Equations: For every formula, provide the LaTeX and a 'plainEnglish' verbal translation (e.g., "Force equals mass times acceleration").
+            4. Mnemonics: Create vivid, memorable hooks using the user's preference.
+            5. Visuals: Describe any diagrams/images as step-by-step mental models.
+            6. Plan: A 3-day spaced repetition schedule.
+            
+            Return a JSON object matching the StudyData interface.`
           }
         ]
       }
@@ -41,6 +52,8 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
       responseSchema: {
         type: Type.OBJECT,
         properties: {
+          id: { type: Type.STRING },
+          title: { type: Type.STRING },
           concepts: {
             type: Type.ARRAY,
             items: {
@@ -49,9 +62,10 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
                 id: { type: Type.STRING },
                 term: { type: Type.STRING },
                 explanation: { type: Type.STRING },
-                testLikelihood: { type: Type.STRING, enum: ['High', 'Medium', 'Low'] }
+                testLikelihood: { type: Type.STRING, enum: ['High', 'Medium', 'Low'] },
+                relatedConceptIds: { type: Type.ARRAY, items: { type: Type.STRING } }
               },
-              required: ['id', 'term', 'explanation', 'testLikelihood']
+              required: ['id', 'term', 'explanation', 'testLikelihood', 'relatedConceptIds']
             }
           },
           equations: {
@@ -61,23 +75,11 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
               properties: {
                 id: { type: Type.STRING },
                 term: { type: Type.STRING },
-                formula: { type: Type.STRING },
+                formula: { type: Type.STRING, description: "LaTeX using $ or $$ delimiters" },
+                plainEnglish: { type: Type.STRING },
                 explanation: { type: Type.STRING }
               },
-              required: ['id', 'term', 'formula', 'explanation']
-            }
-          },
-          laws: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                name: { type: Type.STRING },
-                statement: { type: Type.STRING },
-                application: { type: Type.STRING }
-              },
-              required: ['id', 'name', 'statement', 'application']
+              required: ['id', 'term', 'formula', 'plainEnglish', 'explanation']
             }
           },
           visualAids: {
@@ -88,7 +90,7 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
                 id: { type: Type.STRING },
                 description: { type: Type.STRING },
                 summary: { type: Type.STRING },
-                mentalImage: { type: Type.STRING, description: "A step-by-step mental image mnemonic for the diagram" }
+                mentalImage: { type: Type.STRING }
               },
               required: ['id', 'description', 'summary', 'mentalImage']
             }
@@ -100,8 +102,8 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
               properties: {
                 conceptId: { type: Type.STRING },
                 term: { type: Type.STRING },
-                aid: { type: Type.STRING, description: "The acronym or phrase" },
-                visualHook: { type: Type.STRING, description: "Specific vivid image to imagine" }
+                aid: { type: Type.STRING },
+                visualHook: { type: Type.STRING }
               },
               required: ['conceptId', 'term', 'aid', 'visualHook']
             }
@@ -109,37 +111,23 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
           plan: {
             type: Type.OBJECT,
             properties: {
-              core: { type: Type.ARRAY, items: { type: Type.STRING } },
-              supporting: { type: Type.ARRAY, items: { type: Type.STRING } },
-              examples: { type: Type.ARRAY, items: { type: Type.STRING } },
               schedule: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    day: { type: Type.NUMBER },
+                    day: { type: Type.INTEGER },
                     focus: { type: Type.STRING },
                     tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
+                  },
+                  required: ['day', 'focus', 'tasks']
                 }
               }
-            }
-          },
-          flowchart: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                label: { type: Type.STRING },
-                description: { type: Type.STRING },
-                next: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ['id', 'label', 'description']
-            }
+            },
+            required: ['schedule']
           }
         },
-        required: ['concepts', 'mnemonics', 'plan']
+        required: ['id', 'title', 'concepts', 'mnemonics', 'plan']
       }
     }
   });
@@ -149,15 +137,14 @@ export const processStudyMaterial = async (fileBase64: string, mimeType: string)
 
 export const generateQuizQuestions = async (studyData: StudyData, weakConcepts: string[] = []): Promise<QuizQuestion[]> => {
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Generate 10 adaptive quiz questions based on this study material: ${JSON.stringify(studyData)}. 
-    Include questions about specific equations, laws, and visual concepts extracted.
-    Heavily prioritize testing these weak concepts if provided: ${weakConcepts.join(', ')}.
-    Include:
-    - 4 Multiple Choice
-    - 3 Short Answer
-    - 3 "Explain in your own words" (conceptual check)
-    Make them progressively harder.`,
+    model: 'gemini-3-pro-preview',
+    contents: `Generate 10 adaptive recall questions for: ${studyData.title}.
+    Weak Concepts for Focus: ${weakConcepts.join(', ')}.
+    
+    STRICT MATH RULE:
+    - Use KaTeX $...$ for inline and $$...$$ for blocks.
+    - No 'align', use 'aligned'.
+    - Return a JSON array of QuizQuestion objects.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -178,17 +165,19 @@ export const generateQuizQuestions = async (studyData: StudyData, weakConcepts: 
       }
     }
   });
-
   return JSON.parse(response.text);
 };
 
 export const gradeAnswer = async (question: QuizQuestion, userAnswer: string): Promise<QuizFeedback> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Grade this answer for the question: "${question.question}". 
-    The correct answer is: "${question.correctAnswer}". 
-    The user provided: "${userAnswer}".
-    Provide immediate feedback, a correction if wrong, and a memory tip.`,
+    contents: `Grade the student's answer.
+    Question: "${question.question}"
+    Correct Answer: "${question.correctAnswer}"
+    Student Answer: "${userAnswer}"
+    
+    Rule: Use KaTeX $ or $$ for math in the feedback.
+    Provide a concise memory tip for long-term retention.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -203,17 +192,17 @@ export const gradeAnswer = async (question: QuizQuestion, userAnswer: string): P
       }
     }
   });
-
   return JSON.parse(response.text);
 };
 
 export const askTutoring = async (concept: string, context: string, question: string): Promise<string> => {
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `You are an AI Study Tutor. A student is asking about the concept: "${concept}".
-    Context from study material: "${context}".
-    User Question: "${question}".
-    Explain in a way that helps with long-term memorization. Break down complex ideas and use analogies.`,
+    model: 'gemini-3-pro-preview',
+    contents: `Tutor session for concept "${concept}".
+    Background Knowledge: ${context}
+    Student Query: "${question}"
+    
+    Requirement: Use KaTeX $...$ for all mathematical notation. Use analogies and avoid jargon where possible.`,
   });
-  return response.text || "I'm sorry, I couldn't generate an explanation right now.";
+  return response.text || "I'm sorry, I couldn't generate a response. Please try again.";
 };
